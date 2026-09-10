@@ -1,0 +1,32 @@
+# dependencies
+node_modules/
+
+# env files
+.env
+.env.*.local
+
+# prisma generated client (regenerated via postinstall)
+src/generated/
+
+# next.js
+.next/
+out/
+
+# build output
+dist/
+build/
+
+# logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# testing / coverage
+coverage/
+
+# os
+.DS_Store
+
+# editors
+.vscode/
+.idea/
