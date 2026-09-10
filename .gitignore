@@ -12,6 +12,9 @@ src/generated/
 .next/
 out/
 
+# typescript
+*.tsbuildinfo
+
 # build output
 dist/
 build/
