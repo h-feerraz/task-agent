@@ -4,7 +4,7 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { PrismaPg } from '@prisma/adapter-pg'
 import { PrismaClient } from '../generated/prisma/client'
 import { z } from 'zod'
-import type { CreateTaskResult, SystemHealthResult } from '../shared/types'
+import type { CreateTaskResult, ListTasksResult, SystemHealthResult } from '../shared/types'
 
 const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL })
 const prisma = new PrismaClient({ adapter })
@@ -111,6 +111,58 @@ server.registerTool(
     } catch (error) {
       console.error(error)
       const result: CreateTaskResult = { status: 'error', message: 'Failed to create task' }
+      return {
+        content: [{ type: 'text', text: JSON.stringify(result) }],
+        structuredContent: result,
+        isError: true,
+      }
+    }
+  },
+)
+
+server.registerTool(
+  'list_tasks',
+  {
+    title: 'List Tasks',
+    description: 'Lists tasks for the user, optionally filtered by status and/or priority',
+    inputSchema: {
+      status: z.enum(['PENDING', 'IN_PROGRESS', 'DONE']).nullable().optional(),
+      priority: z.enum(['LOW', 'MEDIUM', 'HIGH']).nullable().optional(),
+    },
+    outputSchema: {
+      status: z.enum(['ok', 'error']),
+      tasks: z.array(z.object(taskOutputShape)).optional(),
+      message: z.string().optional(),
+    },
+  },
+  async ({ status, priority }) => {
+    try {
+      const tasks = await prisma.task.findMany({
+        where: {
+          userId: process.env.DEFAULT_USER_ID,
+          ...(status != null && { status }),
+          ...(priority != null && { priority }),
+        },
+      })
+
+      const result: ListTasksResult = {
+        status: 'ok',
+        tasks: tasks.map((task) => ({
+          id: task.id,
+          title: task.title,
+          description: task.description,
+          priority: task.priority,
+          status: task.status,
+          dueDate: task.dueDate ? task.dueDate.toISOString() : null,
+        })),
+      }
+      return {
+        content: [{ type: 'text', text: JSON.stringify(result) }],
+        structuredContent: result,
+      }
+    } catch (error) {
+      console.error(error)
+      const result: ListTasksResult = { status: 'error', message: 'Failed to list tasks' }
       return {
         content: [{ type: 'text', text: JSON.stringify(result) }],
         structuredContent: result,
