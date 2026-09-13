@@ -71,9 +71,9 @@ server.registerTool(
     description: 'Creates a new task and persists it to Postgres',
     inputSchema: {
       title: z.string(),
-      description: z.string().optional(),
-      priority: z.enum(['LOW', 'MEDIUM', 'HIGH']).optional(),
-      dueDate: z.string().optional(),
+      description: z.string().nullable().optional(),
+      priority: z.enum(['LOW', 'MEDIUM', 'HIGH']).nullable().optional(),
+      dueDate: z.string().nullable().optional(),
     },
     outputSchema: {
       status: z.enum(['ok', 'error']),
@@ -87,9 +87,9 @@ server.registerTool(
         data: {
           title,
           userId: process.env.DEFAULT_USER_ID,
-          ...(description !== undefined && { description }),
-          ...(priority !== undefined && { priority }),
-          ...(dueDate !== undefined && { dueDate: new Date(dueDate) }),
+          ...(description != null && { description }),
+          ...(priority != null && { priority }),
+          ...(dueDate != null && { dueDate: new Date(dueDate) }),
         },
       })
 
