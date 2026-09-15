@@ -1,0 +1,15 @@
+services:
+  db:
+    image: postgres:16
+    container_name: task-agent-db
+    environment:
+      POSTGRES_USER: task_agent
+      POSTGRES_PASSWORD: task_agent
+      POSTGRES_DB: task_agent
+    ports:
+      - "5433:5432"
+    volumes:
+      - task-agent-data:/var/lib/postgresql/data
+
+volumes:
+  task-agent-data:
