@@ -24,6 +24,8 @@ export type SearchTasksResult = { status: 'ok'; tasks: TaskDTO[] } | { status: '
 
 export type UpdateTaskResult = { status: 'ok'; task: TaskDTO } | { status: 'error'; message: string }
 
+export type DeleteTaskResult = { status: 'ok'; task: TaskDTO } | { status: 'error'; message: string }
+
 export interface ChatMessage {
   role: 'user' | 'assistant'
   content: string

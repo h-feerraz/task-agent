@@ -6,6 +6,7 @@ import { PrismaClient } from '../generated/prisma/client'
 import { z } from 'zod'
 import type {
   CreateTaskResult,
+  DeleteTaskResult,
   ListTasksResult,
   SearchTasksResult,
   SystemHealthResult,
@@ -294,6 +295,64 @@ server.registerTool(
     } catch (error) {
       console.error(error)
       const result: UpdateTaskResult = { status: 'error', message: 'Failed to update task' }
+      return {
+        content: [{ type: 'text', text: JSON.stringify(result) }],
+        structuredContent: result,
+        isError: true,
+      }
+    }
+  },
+)
+
+server.registerTool(
+  'delete_task',
+  {
+    title: 'Delete Task',
+    description: 'Deletes a task owned by the user by id',
+    inputSchema: {
+      id: z.string(),
+    },
+    outputSchema: {
+      status: z.enum(['ok', 'error']),
+      task: z.object(taskOutputShape).optional(),
+      message: z.string().optional(),
+    },
+  },
+  async ({ id }) => {
+    try {
+      const existing = await prisma.task.findFirst({
+        where: { id, userId: process.env.DEFAULT_USER_ID },
+      })
+
+      if (!existing) {
+        const result: DeleteTaskResult = { status: 'error', message: 'Task not found' }
+        return {
+          content: [{ type: 'text', text: JSON.stringify(result) }],
+          structuredContent: result,
+          isError: true,
+        }
+      }
+
+      const task = await prisma.task.delete({ where: { id } })
+
+      const result: DeleteTaskResult = {
+        status: 'ok',
+        task: {
+          id: task.id,
+          title: task.title,
+          description: task.description,
+          priority: task.priority,
+          status: task.status,
+          dueDate: task.dueDate ? task.dueDate.toISOString() : null,
+        },
+      }
+      return {
+        content: [{ type: 'text', text: JSON.stringify(result) }],
+        structuredContent: result,
+      }
+    } catch (error) {
+      console.error(error)
+      const result: DeleteTaskResult = { status: 'error', message: 'Failed to delete task' }
       return {
         content: [{ type: 'text', text: JSON.stringify(result) }],
         structuredContent: result,
