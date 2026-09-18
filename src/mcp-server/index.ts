@@ -4,7 +4,13 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { PrismaPg } from '@prisma/adapter-pg'
 import { PrismaClient } from '../generated/prisma/client'
 import { z } from 'zod'
-import type { CreateTaskResult, ListTasksResult, SearchTasksResult, SystemHealthResult } from '../shared/types'
+import type {
+  CreateTaskResult,
+  ListTasksResult,
+  SearchTasksResult,
+  SystemHealthResult,
+  UpdateTaskResult,
+} from '../shared/types'
 
 const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL })
 const prisma = new PrismaClient({ adapter })
@@ -216,6 +222,78 @@ server.registerTool(
     } catch (error) {
       console.error(error)
       const result: SearchTasksResult = { status: 'error', message: 'Failed to search tasks' }
+      return {
+        content: [{ type: 'text', text: JSON.stringify(result) }],
+        structuredContent: result,
+        isError: true,
+      }
+    }
+  },
+)
+
+server.registerTool(
+  'update_task',
+  {
+    title: 'Update Task',
+    description: 'Updates one or more fields of an existing task owned by the user',
+    inputSchema: {
+      id: z.string(),
+      title: z.string().nullable().optional(),
+      description: z.string().nullable().optional(),
+      priority: z.enum(['LOW', 'MEDIUM', 'HIGH']).nullable().optional(),
+      status: z.enum(['PENDING', 'IN_PROGRESS', 'DONE']).nullable().optional(),
+      dueDate: z.string().nullable().optional(),
+    },
+    outputSchema: {
+      status: z.enum(['ok', 'error']),
+      task: z.object(taskOutputShape).optional(),
+      message: z.string().optional(),
+    },
+  },
+  async ({ id, title, description, priority, status, dueDate }) => {
+    try {
+      const existing = await prisma.task.findFirst({
+        where: { id, userId: process.env.DEFAULT_USER_ID },
+      })
+
+      if (!existing) {
+        const result: UpdateTaskResult = { status: 'error', message: 'Task not found' }
+        return {
+          content: [{ type: 'text', text: JSON.stringify(result) }],
+          structuredContent: result,
+          isError: true,
+        }
+      }
+
+      const task = await prisma.task.update({
+        where: { id },
+        data: {
+          ...(title != null && { title }),
+          ...(description != null && { description }),
+          ...(priority != null && { priority }),
+          ...(status != null && { status }),
+          ...(dueDate != null && { dueDate: new Date(dueDate) }),
+        },
+      })
+
+      const result: UpdateTaskResult = {
+        status: 'ok',
+        task: {
+          id: task.id,
+          title: task.title,
+          description: task.description,
+          priority: task.priority,
+          status: task.status,
+          dueDate: task.dueDate ? task.dueDate.toISOString() : null,
+        },
+      }
+      return {
+        content: [{ type: 'text', text: JSON.stringify(result) }],
+        structuredContent: result,
+      }
+    } catch (error) {
+      console.error(error)
+      const result: UpdateTaskResult = { status: 'error', message: 'Failed to update task' }
       return {
         content: [{ type: 'text', text: JSON.stringify(result) }],
         structuredContent: result,
