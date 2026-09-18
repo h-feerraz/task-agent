@@ -1,23 +1,43 @@
-import { Client } from '@modelcontextprotocol/sdk/client/index.js'
-import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
-import type { ChatMessage, SystemHealthResult } from '../shared/types'
+import { ChatGroq } from '@langchain/groq'
+import { MultiServerMCPClient } from '@langchain/mcp-adapters'
+import { createAgent } from 'langchain'
+import type { ChatMessage } from '../shared/types'
 
-export async function askAgent(_message: ChatMessage): Promise<ChatMessage> {
-  const transport = new StdioClientTransport({
-    command: 'pnpm',
-    args: ['exec', 'tsx', 'src/mcp-server/index.ts'],
+export async function askAgent(message: ChatMessage): Promise<ChatMessage> {
+  const client = new MultiServerMCPClient({
+    mcpServers: {
+      taskAgent: {
+        transport: 'stdio',
+        command: 'pnpm',
+        args: ['exec', 'tsx', 'src/mcp-server/index.ts'],
+      },
+    },
   })
 
-  const client = new Client({ name: 'task-agent', version: '0.1.0' })
-  await client.connect(transport)
+  const tools = await client.getTools()
+  const model = new ChatGroq({ model: 'openai/gpt-oss-20b' })
+  const today = new Date().toISOString().slice(0, 10)
 
-  const result = await client.callTool({ name: 'system_health', arguments: {} })
+  const agent = createAgent({
+    model,
+    tools,
+    systemPrompt: `Você é um assistente que gerencia tarefas. Hoje é ${today}.
+Quando o usuário pedir para criar uma tarefa, chame a tool create_task.
+Interprete título, descrição, prioridade (baixa/média/alta -> LOW/MEDIUM/HIGH) e data de entrega (resolva expressões relativas como "amanhã" usando a data de hoje) quando mencionadas na mensagem.
+Responda sempre em português, confirmando a tarefa criada e mostrando os atributos que ela tem (título, descrição, prioridade, status e data, quando existirem).`,
+  })
+
+  const result = await agent.invoke({
+    messages: [{ role: 'user', content: message.content }],
+  })
+
+  const lastMessage = result.messages.at(-1)
+  const content = typeof lastMessage?.content === 'string' ? lastMessage.content : JSON.stringify(lastMessage?.content)
+
   await client.close()
-
-  const health = result.structuredContent as SystemHealthResult
 
   return {
     role: 'assistant',
-    content: `System health: ${health.status}. ${health.taskCount} task(s) in the database.`,
+    content,
   }
 }
