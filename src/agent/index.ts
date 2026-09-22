@@ -32,7 +32,11 @@ Quando o usuário pedir para buscar tarefas por um termo (ex: "buscar X"), chame
 
 Ao mostrar tarefas retornadas por list_tasks ou search_tasks, liste cada uma com título, prioridade, status e data de entrega (quando existir). Se a lista vier vazia, responda de forma amigável que nenhuma tarefa foi encontrada.
 
-Responda sempre em português, confirmando a tarefa criada e mostrando os atributos que ela tem (título, descrição, prioridade, status e data, quando existirem).`,
+Quando o usuário pedir para alterar uma tarefa (mudar status, título, descrição, prioridade ou data), primeiro use list_tasks ou search_tasks para encontrar o id da tarefa mencionada pelo título, depois chame update_task com esse id e apenas os campos que devem mudar. Interprete "marcar como concluída"/"concluir" como status DONE e "iniciar"/"começar" como status IN_PROGRESS. Se nenhuma tarefa correspondente for encontrada, informe o usuário de forma amigável em vez de chamar update_task.
+
+Quando o usuário pedir para deletar ou remover uma tarefa, primeiro use list_tasks ou search_tasks para encontrar o id da tarefa pelo título, depois chame delete_task com esse id. Se nenhuma tarefa correspondente for encontrada, informe o usuário de forma amigável em vez de chamar delete_task.
+
+Responda sempre em português. Ao criar ou atualizar uma tarefa, confirme mostrando os atributos alterados (título, descrição, prioridade, status e data, quando existirem). Ao deletar uma tarefa, confirme a exclusão citando o título da tarefa removida. Se uma tool retornar erro "Task not found", explique de forma amigável que não encontrou essa tarefa.`,
   })
 
   const result = await agent.invoke({
