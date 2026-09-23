@@ -3,7 +3,7 @@ import { MultiServerMCPClient } from '@langchain/mcp-adapters'
 import { createAgent } from 'langchain'
 import type { ChatMessage } from '../shared/types'
 
-export async function askAgent(message: ChatMessage): Promise<ChatMessage> {
+export async function askAgent(messages: ChatMessage[]): Promise<ChatMessage> {
   const client = new MultiServerMCPClient({
     mcpServers: {
       taskAgent: {
@@ -40,7 +40,7 @@ Responda sempre em português. Ao criar ou atualizar uma tarefa, confirme mostra
   })
 
   const result = await agent.invoke({
-    messages: [{ role: 'user', content: message.content }],
+    messages: messages.map(({ role, content }) => ({ role, content })),
   })
 
   const lastMessage = result.messages.at(-1)
