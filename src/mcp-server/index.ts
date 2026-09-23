@@ -15,7 +15,17 @@ import type {
   UpdateTaskResult,
 } from '../shared/types'
 
-const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL })
+const databaseUrl = process.env.DATABASE_URL
+const defaultUserId = process.env.DEFAULT_USER_ID
+
+if (!databaseUrl) {
+  throw new Error('DATABASE_URL environment variable is required')
+}
+if (!defaultUserId) {
+  throw new Error('DEFAULT_USER_ID environment variable is required')
+}
+
+const adapter = new PrismaPg({ connectionString: databaseUrl })
 const prisma = new PrismaClient({ adapter })
 
 const server = new McpServer({
@@ -106,7 +116,7 @@ server.registerTool(
       const task = await prisma.task.create({
         data: {
           title,
-          userId: process.env.DEFAULT_USER_ID,
+          userId: defaultUserId,
           ...(description != null && { description }),
           ...(priority != null && { priority }),
           ...(dueDate != null && { dueDate: new Date(dueDate) }),
@@ -152,7 +162,7 @@ server.registerTool(
     try {
       const tasks = await prisma.task.findMany({
         where: {
-          userId: process.env.DEFAULT_USER_ID,
+          userId: defaultUserId,
           ...(status != null && { status }),
           ...(priority != null && { priority }),
         },
@@ -196,7 +206,7 @@ server.registerTool(
     try {
       const tasks = await prisma.task.findMany({
         where: {
-          userId: process.env.DEFAULT_USER_ID,
+          userId: defaultUserId,
           OR: [
             { title: { contains: term, mode: 'insensitive' } },
             { description: { contains: term, mode: 'insensitive' } },
@@ -246,7 +256,7 @@ server.registerTool(
   async ({ id, title, description, priority, status, dueDate }) => {
     try {
       const existing = await prisma.task.findFirst({
-        where: { id, userId: process.env.DEFAULT_USER_ID },
+        where: { id, userId: defaultUserId },
       })
 
       if (!existing) {
@@ -306,7 +316,7 @@ server.registerTool(
   async ({ id }) => {
     try {
       const existing = await prisma.task.findFirst({
-        where: { id, userId: process.env.DEFAULT_USER_ID },
+        where: { id, userId: defaultUserId },
       })
 
       if (!existing) {
