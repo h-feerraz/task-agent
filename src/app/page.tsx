@@ -86,10 +86,11 @@ export default function Home() {
     setIsLoading(true)
 
     try {
+      const history: ChatMessage[] = [...messages, userMessage].map(({ role, content }) => ({ role, content }))
       const res = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ role: userMessage.role, content: userMessage.content }),
+        body: JSON.stringify(history),
       })
       if (!res.ok) {
         throw new Error(`Chat request failed with status ${res.status}`)
