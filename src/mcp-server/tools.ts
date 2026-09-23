@@ -12,6 +12,11 @@ import type {
   UpdateTaskResult,
 } from '../shared/types'
 
+// Thrown inside a $transaction callback to signal "not found" distinctly
+// from any other failure, so the caller can return the friendly message
+// instead of the generic "Failed to update/delete task" one.
+class TaskNotFoundError extends Error {}
+
 export function toTaskDTO(task: Task): TaskDTO {
   return {
     id: task.id,
@@ -116,23 +121,32 @@ export type UpdateTaskInput = {
 export async function updateTask(prisma: PrismaClient, userId: string, input: UpdateTaskInput): Promise<UpdateTaskResult> {
   const { id, title, description, priority, status, dueDate } = input
   try {
-    const existing = await prisma.task.findFirst({ where: { id, userId } })
-    if (!existing) {
-      return { status: 'error', message: 'Task not found' }
-    }
+    // The ownership check and the write happen inside the same transaction,
+    // so a concurrent delete of the same row between the two can't slip
+    // through: either both see the row and both succeed, or the check
+    // fails and we return "not found" instead of a raw Prisma write error.
+    const task = await prisma.$transaction(async (tx) => {
+      const existing = await tx.task.findFirst({ where: { id, userId } })
+      if (!existing) {
+        throw new TaskNotFoundError()
+      }
 
-    const task = await prisma.task.update({
-      where: { id },
-      data: {
-        ...(title != null && { title }),
-        ...(description != null && { description }),
-        ...(priority != null && { priority }),
-        ...(status != null && { status }),
-        ...(dueDate != null && { dueDate: new Date(dueDate) }),
-      },
+      return tx.task.update({
+        where: { id },
+        data: {
+          ...(title != null && { title }),
+          ...(description != null && { description }),
+          ...(priority != null && { priority }),
+          ...(status != null && { status }),
+          ...(dueDate != null && { dueDate: new Date(dueDate) }),
+        },
+      })
     })
     return { status: 'ok', task: toTaskDTO(task) }
   } catch (error) {
+    if (error instanceof TaskNotFoundError) {
+      return { status: 'error', message: 'Task not found' }
+    }
     console.error(error)
     return { status: 'error', message: 'Failed to update task' }
   }
@@ -145,14 +159,21 @@ export type DeleteTaskInput = {
 export async function deleteTask(prisma: PrismaClient, userId: string, input: DeleteTaskInput): Promise<DeleteTaskResult> {
   const { id } = input
   try {
-    const existing = await prisma.task.findFirst({ where: { id, userId } })
-    if (!existing) {
-      return { status: 'error', message: 'Task not found' }
-    }
+    // Same reasoning as updateTask: check-then-delete happens atomically so
+    // a concurrent delete of the same row can't slip through as a raw error.
+    const task = await prisma.$transaction(async (tx) => {
+      const existing = await tx.task.findFirst({ where: { id, userId } })
+      if (!existing) {
+        throw new TaskNotFoundError()
+      }
 
-    const task = await prisma.task.delete({ where: { id } })
+      return tx.task.delete({ where: { id } })
+    })
     return { status: 'ok', task: toTaskDTO(task) }
   } catch (error) {
+    if (error instanceof TaskNotFoundError) {
+      return { status: 'error', message: 'Task not found' }
+    }
     console.error(error)
     return { status: 'error', message: 'Failed to delete task' }
   }
