@@ -3,6 +3,7 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { PrismaPg } from '@prisma/adapter-pg'
 import { PrismaClient } from '../generated/prisma/client'
+import type { Task } from '../generated/prisma/client'
 import { z } from 'zod'
 import type {
   CreateTaskResult,
@@ -10,6 +11,7 @@ import type {
   ListTasksResult,
   SearchTasksResult,
   SystemHealthResult,
+  TaskDTO,
   UpdateTaskResult,
 } from '../shared/types'
 
@@ -71,6 +73,17 @@ const taskOutputShape = {
   dueDate: z.string().nullable(),
 }
 
+function toTaskDTO(task: Task): TaskDTO {
+  return {
+    id: task.id,
+    title: task.title,
+    description: task.description,
+    priority: task.priority,
+    status: task.status,
+    dueDate: task.dueDate ? task.dueDate.toISOString() : null,
+  }
+}
+
 server.registerTool(
   'create_task',
   {
@@ -102,14 +115,7 @@ server.registerTool(
 
       const result: CreateTaskResult = {
         status: 'ok',
-        task: {
-          id: task.id,
-          title: task.title,
-          description: task.description,
-          priority: task.priority,
-          status: task.status,
-          dueDate: task.dueDate ? task.dueDate.toISOString() : null,
-        },
+        task: toTaskDTO(task),
       }
       return {
         content: [{ type: 'text', text: JSON.stringify(result) }],
@@ -154,14 +160,7 @@ server.registerTool(
 
       const result: ListTasksResult = {
         status: 'ok',
-        tasks: tasks.map((task) => ({
-          id: task.id,
-          title: task.title,
-          description: task.description,
-          priority: task.priority,
-          status: task.status,
-          dueDate: task.dueDate ? task.dueDate.toISOString() : null,
-        })),
+        tasks: tasks.map(toTaskDTO),
       }
       return {
         content: [{ type: 'text', text: JSON.stringify(result) }],
@@ -207,14 +206,7 @@ server.registerTool(
 
       const result: SearchTasksResult = {
         status: 'ok',
-        tasks: tasks.map((task) => ({
-          id: task.id,
-          title: task.title,
-          description: task.description,
-          priority: task.priority,
-          status: task.status,
-          dueDate: task.dueDate ? task.dueDate.toISOString() : null,
-        })),
+        tasks: tasks.map(toTaskDTO),
       }
       return {
         content: [{ type: 'text', text: JSON.stringify(result) }],
@@ -279,14 +271,7 @@ server.registerTool(
 
       const result: UpdateTaskResult = {
         status: 'ok',
-        task: {
-          id: task.id,
-          title: task.title,
-          description: task.description,
-          priority: task.priority,
-          status: task.status,
-          dueDate: task.dueDate ? task.dueDate.toISOString() : null,
-        },
+        task: toTaskDTO(task),
       }
       return {
         content: [{ type: 'text', text: JSON.stringify(result) }],
@@ -337,14 +322,7 @@ server.registerTool(
 
       const result: DeleteTaskResult = {
         status: 'ok',
-        task: {
-          id: task.id,
-          title: task.title,
-          description: task.description,
-          priority: task.priority,
-          status: task.status,
-          dueDate: task.dueDate ? task.dueDate.toISOString() : null,
-        },
+        task: toTaskDTO(task),
       }
       return {
         content: [{ type: 'text', text: JSON.stringify(result) }],
