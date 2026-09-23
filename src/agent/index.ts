@@ -3,25 +3,42 @@ import { MultiServerMCPClient } from '@langchain/mcp-adapters'
 import { createAgent } from 'langchain'
 import type { ChatMessage } from '../shared/types'
 
-export async function askAgent(messages: ChatMessage[]): Promise<ChatMessage> {
-  const client = new MultiServerMCPClient({
-    mcpServers: {
-      taskAgent: {
-        transport: 'stdio',
-        command: 'pnpm',
-        args: ['exec', 'tsx', 'src/mcp-server/index.ts'],
+// Lazily created on the first real chat message and reused after that:
+// spawning the MCP server subprocess and opening its Postgres pool is
+// expensive, so we don't want to pay that cost on every chat message.
+// Initialization is deliberately NOT eager at module scope — Next.js
+// imports this module (to inspect the route) while collecting page data
+// at build time, without ever calling askAgent, which would otherwise
+// spawn and immediately abandon the MCP subprocess during `next build`.
+let toolsPromise: ReturnType<MultiServerMCPClient['getTools']> | undefined
+let model: ChatGroq | undefined
+
+function getTools() {
+  if (!toolsPromise) {
+    const client = new MultiServerMCPClient({
+      mcpServers: {
+        taskAgent: {
+          transport: 'stdio',
+          command: 'pnpm',
+          args: ['exec', 'tsx', 'src/mcp-server/index.ts'],
+        },
       },
-    },
-  })
+    })
+    toolsPromise = client.getTools()
+  }
+  return toolsPromise
+}
 
-  const tools = await client.getTools()
-  const model = new ChatGroq({ model: 'openai/gpt-oss-20b' })
+function getModel() {
+  if (!model) {
+    model = new ChatGroq({ model: 'openai/gpt-oss-20b' })
+  }
+  return model
+}
+
+function buildSystemPrompt(): string {
   const today = new Date().toISOString().slice(0, 10)
-
-  const agent = createAgent({
-    model,
-    tools,
-    systemPrompt: `Você é um assistente que gerencia tarefas. Hoje é ${today}.
+  return `Você é um assistente que gerencia tarefas. Hoje é ${today}.
 Quando o usuário pedir para criar uma tarefa, chame a tool create_task.
 Interprete título, descrição, prioridade (baixa/média/alta -> LOW/MEDIUM/HIGH) e data de entrega (resolva expressões relativas como "amanhã" usando a data de hoje) quando mencionadas na mensagem.
 
@@ -36,7 +53,16 @@ Quando o usuário pedir para alterar uma tarefa (mudar status, título, descriç
 
 Quando o usuário pedir para deletar ou remover uma tarefa, primeiro use list_tasks ou search_tasks para encontrar o id da tarefa pelo título, depois chame delete_task com esse id. Se nenhuma tarefa correspondente for encontrada, informe o usuário de forma amigável em vez de chamar delete_task.
 
-Responda sempre em português. Ao criar ou atualizar uma tarefa, confirme mostrando os atributos alterados (título, descrição, prioridade, status e data, quando existirem). Ao deletar uma tarefa, confirme a exclusão citando o título da tarefa removida. Se uma tool retornar erro "Task not found", explique de forma amigável que não encontrou essa tarefa.`,
+Responda sempre em português. Ao criar ou atualizar uma tarefa, confirme mostrando os atributos alterados (título, descrição, prioridade, status e data, quando existirem). Ao deletar uma tarefa, confirme a exclusão citando o título da tarefa removida. Se uma tool retornar erro "Task not found", explique de forma amigável que não encontrou essa tarefa.`
+}
+
+export async function askAgent(messages: ChatMessage[]): Promise<ChatMessage> {
+  const tools = await getTools()
+
+  const agent = createAgent({
+    model: getModel(),
+    tools,
+    systemPrompt: buildSystemPrompt(),
   })
 
   const result = await agent.invoke({
@@ -45,8 +71,6 @@ Responda sempre em português. Ao criar ou atualizar uma tarefa, confirme mostra
 
   const lastMessage = result.messages.at(-1)
   const content = typeof lastMessage?.content === 'string' ? lastMessage.content : JSON.stringify(lastMessage?.content)
-
-  await client.close()
 
   return {
     role: 'assistant',
