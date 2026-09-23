@@ -9,6 +9,7 @@
     "build": "next build",
     "start": "next start",
     "typecheck": "tsc --noEmit",
+    "test": "vitest run",
     "db:up": "docker compose up -d",
     "db:down": "docker compose down",
     "db:generate": "prisma generate",
@@ -51,6 +52,7 @@
     "@types/react-dom": "^19.3.0",
     "prisma": "7.10.0",
     "tsx": "^4.23.13",
-    "typescript": "^5.7.0"
+    "typescript": "^5.7.0",
+    "vitest": "^3.2.4"
   }
 }
