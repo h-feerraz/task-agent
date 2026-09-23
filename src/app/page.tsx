@@ -91,10 +91,24 @@ export default function Home() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ role: userMessage.role, content: userMessage.content }),
       })
+      if (!res.ok) {
+        throw new Error(`Chat request failed with status ${res.status}`)
+      }
       const assistantMessage: ChatMessage = await res.json()
       setMessages((prev) => [
         ...prev,
         { ...assistantMessage, id: crypto.randomUUID(), timestamp: Date.now() },
+      ])
+    } catch (error) {
+      console.error(error)
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: crypto.randomUUID(),
+          role: 'assistant',
+          content: 'Não consegui falar com o servidor agora. Tente novamente em instantes.',
+          timestamp: Date.now(),
+        },
       ])
     } finally {
       setIsLoading(false)
